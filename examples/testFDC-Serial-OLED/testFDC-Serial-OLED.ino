@@ -67,12 +67,12 @@ void setup() {
 
   // ### Start FDC
   // Start FDC2212 with 2 channels init
-//  bool capOk = capsense.begin(0x3, 0x4, 0x5, false); //setup first two channels, autoscan with 2 channels, deglitch at 10MHz, external oscillator 
+//  const FDC2214_DEVICE device = capsense.begin(0x3, false, FDC2214_DEGLITCH_10Mhz, false); //setup first two channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
   // Start FDC2214 with 4 channels init
-  bool capOk = capsense.begin(0xF, 0x6, 0x5, false); //setup all four channels, autoscan with 4 channels, deglitch at 10MHz, external oscillator 
+  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, false); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
   // Start FDC2214 with 4 channels init
-//  bool capOk = capsense.begin(0xF, 0x6, 0x5, true); //setup all four channels, autoscan with 4 channels, deglitch at 10MHz, internal oscillator 
-  if (capOk) oled.println("Sensor OK");  
+//  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, true); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, internal oscillator
+  if (device != FDC2214_DEVICE_INVALID) oled.println("Sensor OK");
   else oled.println("Sensor Fail");  
   sensorThreshold[0] = 14000000+320000;
   sensorThreshold[1] = 320000;

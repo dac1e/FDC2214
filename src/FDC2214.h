@@ -13,113 +13,93 @@
 // Feel free to do whatever you want with it. No licensing BS. No limitations.
 //
 
+#pragma once
+
 
 #ifndef _FDC2214_H_
 #define _FDC2214_H_
 
-#if ARDUINO >= 100
-#include "Arduino.h"
-#define WIRE_WRITE Wire.write
-#else
-#include "WProgram.h"
-#define WIRE_WRITE Wire.send
-#endif
+#include <stdint.h>
+#include <Wire.h>
 
-#if defined(__SAM3X8E__)
-typedef volatile RwReg PortReg;
- typedef uint32_t PortMask;
-#define HAVE_PORTREG
-#elif defined(ARDUINO_ARCH_SAMD)
-// not supported
-#elif defined(ESP8266) || defined(ESP32) || defined(ARDUINO_STM32_FEATHER) || defined(__arc__)
-typedef volatile uint32_t PortReg;
-  typedef uint32_t PortMask;
-#elif defined(__AVR__)
-typedef volatile uint8_t PortReg;
-  typedef uint8_t PortMask;
-#define HAVE_PORTREG
-#else
-// chances are its 32 bit so assume that
-typedef volatile uint32_t PortReg;
-typedef uint32_t PortMask;
-#endif
+enum FDC2214_DEVICE : uint16_t {
+  FDC2214_DEVICE_INVALID = 0x0000,
+  FDC2214_DEVICE_FDC211x = 0x3054, // FDC2112 or FDC2114
+  FDC2214_DEVICE_FDC221x = 0x3055, // FDC2212 or FDC2214
+};
 
-#define FDC2214_I2C_ADDR_0   0x2A
-#define FDC2214_I2C_ADDR_1   0x2B
 // Address is 0x2A (default) or 0x2B (if ADDR is high)
+enum FDC2214_I2C_ADDR : uint8_t {
+  FDC2214_I2C_ADDR_0 = 0x2A,
+  FDC2214_I2C_ADDR_1 = 0x2B,
+};
 
-//bitmasks
-#define FDC2214_CH0_UNREADCONV 0x0008         //denotes unread CH0 reading in STATUS register
-#define FDC2214_CH1_UNREADCONV 0x0004         //denotes unread CH1 reading in STATUS register
-#define FDC2214_CH2_UNREADCONV 0x0002         //denotes unread CH2 reading in STATUS register
-#define FDC2214_CH3_UNREADCONV 0x0001         //denotes unread CH3 reading in STATUS register
+enum FDC2214_DEGLITCH : uint8_t {
+  FDC2214_DEGLITCH_1000Khz = 1,
+  FDC2214_DEGLITCH_3300Khz = 4,
+  FDC2214_DEGLITCH_10Mhz   = 5,
+  FDC2214_DEGLITCH_33Mhz   = 6,
+};
 
-
-//registers
-#define FDC2214_DEVICE_ID           		0x7F
-#define FDC2214_MUX_CONFIG          		0x1B
-#define FDC2214_CONFIG              		0x1A
-#define FDC2214_RCOUNT_CH0          		0x08
-#define FDC2214_RCOUNT_CH1          		0x09
-#define FDC2214_RCOUNT_CH2          		0x0A
-#define FDC2214_RCOUNT_CH3          		0x0B
-#define FDC2214_OFFSET_CH0		          	0x0C
-#define FDC2214_OFFSET_CH1          		0x0D
-#define FDC2214_OFFSET_CH2    			    0x0E
-#define FDC2214_OFFSET_CH3         			0x0F
-#define FDC2214_SETTLECOUNT_CH0     		0x10
-#define FDC2214_SETTLECOUNT_CH1     		0x11
-#define FDC2214_SETTLECOUNT_CH2     		0x12
-#define FDC2214_SETTLECOUNT_CH3     		0x13
-#define FDC2214_CLOCK_DIVIDERS_CH0  		0x14
-#define FDC2214_CLOCK_DIVIDERS_CH1  		0x15
-#define FDC2214_CLOCK_DIVIDERS_CH2  		0x16
-#define FDC2214_CLOCK_DIVIDERS_CH3  		0x17
-#define FDC2214_STATUS              		0x18
-#define FDC2214_DATA_CH0_MSB	            0x00
-#define FDC2214_DATA_CH0_LSB    		    0x01
-#define FDC2214_DATA_CH1_MSB	            0x02
-#define FDC2214_DATA_CH1_LSB    		    0x03
-#define FDC2214_DATA_CH2_MSB	            0x04
-#define FDC2214_DATA_CH2_LSB    		    0x05
-#define FDC2214_DATA_CH3_MSB	            0x06
-#define FDC2214_DATA_CH3_LSB    		    0x07
-#define FDC2214_DRIVE_CH0           		0x1E
-#define FDC2214_DRIVE_CH1           		0x1F
-#define FDC2214_DRIVE_CH2           		0x20
-#define FDC2214_DRIVE_CH3           		0x21
-
-// mask for 28bit data to filter out flag bits
-#define FDC2214_DATA_CHx_MASK_DATA         	0x0FFF  
-#define FDC2214_DATA_CHx_MASK_ERRAW        	0x1000  
-#define FDC2214_DATA_CHx_MASK_ERRWD        	0x2000  
-
-
+enum FDC2214_GAIN : uint16_t {
+  FDC2214_GAIN_1  = 0,
+  FDC2214_GAIN_4  = 1,
+  FDC2214_GAIN_8  = 2,
+  FDC2214_GAIN_16 = 3,
+};
 
 class FDC2214 {
 public:
-    FDC2214(uint8_t i2caddr);
-	//_i2caddr = i2caddr
-	
-    boolean begin(uint8_t chanMask, uint8_t autoscanSeq, uint8_t deglitchValue, bool intOsc);
+    // For using a different supported I2C interface pass Wire2, Wire3... as second parameter.
+    FDC2214(FDC2214_I2C_ADDR i2caddr, typeof(Wire)& wire = Wire);
 
- //   double readCapacitance();
+    FDC2214_DEVICE begin(uint8_t channelMask, bool enableSleepMode = false,
+        FDC2214_DEGLITCH deglitchValue = FDC2214_DEGLITCH_33Mhz,
+        bool useInternalOscillator = true, FDC2214_GAIN gain = FDC2214_GAIN_1);
+
+    // Deprecated. autoscanSeq has become obsolete. It is automatically calculated from chanMask.
+    bool begin(uint8_t channelMask, uint8_t deglitchValue, uint8_t autoscanSeq, bool useInternalOscillator);
+
+    const FDC2214_DEVICE getDevice() const;
+
+    const size_t getChannelCount() const;
+
+    // return true on success: Otherwise false.
+    bool setFrequencyDivider(uint8_t channel, uint16_t value);
+
+    // return true on success: Otherwise false.
+    bool setOffset(uint8_t channel, uint16_t value);
+
+    // return true, if sleep mode is enabled. Otherwise false.
+    bool isSleepModeEnabled()const;
+
+    // return sleep mode before that call.
+    bool enableSleepMode();
+
+    // return sleep mode before that call.
+    bool disableSleepMode();
+
 // To be used with FDC2112 and FDC2114
-    unsigned long getReading16(uint8_t channel);
+    unsigned long getReading16(uint8_t channel, int timeout = 100) const;
 // To be used with FDC2212 and FDC2214
-    unsigned long getReading28(uint8_t channel);
+    unsigned long getReading28(uint8_t channel, int timeout = 100) const;
 
 private:
-    void loadSettings(uint8_t chanMask, uint8_t autoscanSeq, uint8_t deglitchValue, bool intOsc);
-//    void setGain(void);
-//    double calculateCapacitance(long long fsensor);
-//    long long calculateFsensor(unsigned long reading);
-    void write8FDC(uint16_t address, uint8_t data);
-    void write16FDC(uint16_t address, uint16_t data);
-    uint32_t read32FDC(uint16_t address);
-    uint16_t read16FDC(uint16_t address);
-    uint8_t read8FDC(uint16_t address);
-    uint8_t _i2caddr;
-};
+    void loadSettings(uint8_t chanMask, bool enableSleepMode, uint8_t deglitchValue, bool useInternalOscillator, FDC2214_GAIN gain);
+    void loadChannelSettings(const uint16_t regOffset);
+    const FDC2214_DEVICE readDeviceId() const;
 
+    void write8FDC(uint16_t address, uint8_t data);
+    uint8_t read8FDC(uint16_t address) const;
+
+    void write16FDC(uint16_t address, uint16_t data);
+    uint16_t read16FDC(uint16_t address) const;
+
+    FDC2214_I2C_ADDR _i2caddr;
+    typeof(Wire)& _wire;
+    mutable FDC2214_DEVICE _device;
+};
 #endif //include guard
+
+//Added by Sloeber 
+#pragma once
