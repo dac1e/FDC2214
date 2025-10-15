@@ -11,11 +11,11 @@
 //
 // Created by Harijs Zablockis, Intelitech, March 2018
 //
-// Supproted chips: FDC2112, FDC2114, FDC2212, FDC2214
-// Transmitts data via serial - use SerialPlot to draw graphs
+// Supported chips: FDC2112, FDC2114, FDC2212, FDC2214
+// Transmits data via serial - use SerialPlot to draw graphs
 // 
-// FDC2x1x hardware configuration:
-// Component value as in default circuit form datasheet. (18uH inductor and 33pF cap)
+// FDC2214 hardware configuration:
+// Component value as in default circuit from datasheet. (18uH inductor and 33pF cap)
 // 
 // SD and ADDR pins tied to GND
 // INTB pin not used
@@ -28,9 +28,15 @@
 //
 
 // ### FDC
+#include <Arduino.h>
 #include <Wire.h>
 #include "FDC2214.h"
-FDC2214 capsense(FDC2214_I2C_ADDR_0); // Use FDC2214_I2C_ADDR_1 
+
+FDC2214 capsense(FDC2214_I2C_ADDR_0, Wire); // Use FDC2214_I2C_ADDR_0
+
+// ### Tell application the maximum of number of channels.
+static constexpr size_t CHAN_COUNT_MAX = 4;
+
 
 // ###
 void setup() {
@@ -41,32 +47,36 @@ void setup() {
   
   // ### Start serial
   Serial.begin(115200);
-  Serial.println("\nFDC2x1x test");
+  Serial.println("\nFDC2214 test");
   
   // ### Start FDC
-  // Start FDC2212 with 2 channels init
-//  const FDC2214_DEVICE device = capsense.begin(0x3, false, FDC2214_DEGLITCH_10Mhz, false); //setup first two channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
-  // Start FDC2214 with 4 channels init
-  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, false); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
-  // Start FDC2214 with 4 channels init
-//  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, true); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, internal oscillator
-  if (device != FDC2214_DEVICE_INVALID) Serial.println("Sensor OK");
-  else Serial.println("Sensor Fail");  
 
+//  // Start FDC2214 with at max 2 channels init, external oscillator
+//  const FDC2214_DEVICE device = capsense.begin(0x3, false, FDC2214_DEGLITCH_10Mhz, false, FDC2214_GAIN_1); //setup first two channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator, gain=1
+
+//  // Start FDC2214 with at max 4 channels init, internal oscillator
+//  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, true, FDC2214_GAIN_1); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, internal oscillator, gain=1
+
+  // Start FDC2214 with at max 4 channels init, external oscillator
+  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, false, FDC2214_GAIN_1); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator, gain=1
+
+  if (device != FDC2214_DEVICE_INVALID) {
+    Serial.println("Sensor OK");
+  } else {
+    Serial.println("Sensor Fail");
+  }
 }
-
-// ### Tell aplication how many chanels will be smapled in main loop
-#define CHAN_COUNT 4
 
 // ### 
 void loop() {
-  unsigned long capa[CHAN_COUNT]; // variable to store data from FDC
-  for (int i = 0; i < CHAN_COUNT; i++){ // for each channel
+  unsigned long capa[CHAN_COUNT_MAX]; // variable to store data from FDC
+  const size_t n = capsense.getChannelCount();
+  for (int i = 0; i < n; i++){ // for each channel
     // ### read 28bit data
-    capa[i]= capsense.getReading28(i);//  
+    capa[i]= capsense.getReading(i);//
     // ### Transmit data to serial in simple format readable by SerialPlot application.
     Serial.print(capa[i]);  
-    if (i < CHAN_COUNT-1) Serial.print(", ");
+    if (i < n-1) Serial.print(", ");
     else Serial.println("");
   }
   // No point in sleeping

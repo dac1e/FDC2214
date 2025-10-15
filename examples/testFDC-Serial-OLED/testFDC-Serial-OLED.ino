@@ -11,11 +11,11 @@
 //
 // Created by Harijs Zablockis, Intelitech, March 2018
 //
-// Supproted chips: FDC2112, FDC2114, FDC2212, FDC2214
+// Supported chips: FDC2112, FDC2114, FDC2212, FDC2214
 // Uses SSD1306Ascii library to display result on 0.96 inch ebay OLED screen
-// Transmitts data via serial - use SerialPlot to draw graphs
+// Transmits data via serial - use SerialPlot to draw graphs
 // 
-// FDC2x1x hardware configuration:
+// FDC2214 hardware configuration:
 // Component value as in default circuit form datasheet. (18uH inductor and 33pF cap)
 // 
 // SD and ADDR pins tied to GND
@@ -29,16 +29,21 @@
 // 
 
 // ### OLED.
+#include <Arduino.h>
 #include <Wire.h>
 #include "SSD1306Ascii.h"
 #include "SSD1306AsciiWire.h"
-#define I2C_ADDRESS 0x3C
-#define RST_PIN -1
+constexpr uint8_t I2C_ADDRESS = 0x3C;
+constexpr int RST_PIN = -1;
 SSD1306AsciiWire oled;
 
 // ### FDC
 #include "FDC2214.h"
-FDC2214 capsense(FDC2214_I2C_ADDR_0); // Use FDC2214_I2C_ADDR_1 
+FDC2214 capsense(FDC2214_I2C_ADDR_0, Wire); // Use FDC2214_I2C_ADDR_0
+
+// ### Tell application the maximum of number of channels.
+static constexpr size_t CHAN_COUNT_MAX = 4;
+
 unsigned long sensorThreshold[2]; // threshold for proximity detection
 
 // ### Local function prototypes 
@@ -66,28 +71,34 @@ void setup() {
   oled.println("devs");
 
   // ### Start FDC
-  // Start FDC2212 with 2 channels init
-//  const FDC2214_DEVICE device = capsense.begin(0x3, false, FDC2214_DEGLITCH_10Mhz, false); //setup first two channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
-  // Start FDC2214 with 4 channels init
-  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, false); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
-  // Start FDC2214 with 4 channels init
-//  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, true); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, internal oscillator
-  if (device != FDC2214_DEVICE_INVALID) oled.println("Sensor OK");
-  else oled.println("Sensor Fail");  
+
+//  // Start FDC2214 with at max 2 channels init, external oscillator
+//  const FDC2214_DEVICE device = capsense.begin(0x3, false, FDC2214_DEGLITCH_10Mhz, false, FDC2214_GAIN_1); //setup first two channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
+
+//  // Start FDC2214 with at max 4 channels init, internal oscillator
+//  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, true, FDC2214_GAIN_1); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, internal oscillator
+
+  // Start FDC2214 with at max 4 channels init, external oscillator
+  const FDC2214_DEVICE device = capsense.begin(0xF, false, FDC2214_DEGLITCH_10Mhz, false, FDC2214_GAIN_1); //setup all four channels, don't stay in sleep mode, deglitch at 10MHz, external oscillator
+
+  if (device != FDC2214_DEVICE_INVALID) {
+    oled.println("Sensor OK");
+  } else {
+    oled.println("Sensor Fail");
+  }
+
   sensorThreshold[0] = 14000000+320000;
   sensorThreshold[1] = 320000;
 
 };
 
-// ### Tell aplication how many chanels will be smapled in main loop
-#define CHAN_COUNT 4 
-
 // ###
 void loop() {
-  unsigned long capa[CHAN_COUNT]; // variable to store data from FDC
-  for (int i = 0; i < CHAN_COUNT; i++){ // for each channel
+  unsigned long capa[CHAN_COUNT_MAX]; // variable to store data from FDC
+  const size_t n = capsense.getChannelCount();
+  for (int i = 0; i < n; i++){ // for each channel
     // ### read 28bit data
-    capa[i]= capsense.getReading28(i);  
+    capa[i]= capsense.getReading(i);
     // ### jump cursor, set font and display channel data on OLED
     oled.setCursor(0,4+(2*i)); 
     oled.set2X();
@@ -96,8 +107,10 @@ void loop() {
     oled.set1X();
     // ### Transmit data to serial in simple format readable by SerialPlot application.
     Serial.print(capa[i]);  
-    if (i < CHAN_COUNT-1) Serial.print(", ");
-    else Serial.println("");
+    if (i < n-1)
+      Serial.print(", ");
+    else
+      Serial.println("");
     // ### display proximity threshold on OLED 
     oled.setCursor(110,4+(2*i));
     if (capa[i] < sensorThreshold[i]){
@@ -150,4 +163,4 @@ int iicScan (){
   else
     Serial.println("done\n");
   return nDevices;
-  }
+}

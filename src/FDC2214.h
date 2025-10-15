@@ -15,7 +15,6 @@
 
 #pragma once
 
-
 #ifndef _FDC2214_H_
 #define _FDC2214_H_
 
@@ -48,8 +47,12 @@ enum FDC2214_GAIN : uint16_t {
   FDC2214_GAIN_16 = 3,
 };
 
+static constexpr unsigned long FDC2214_INVALID_READING = 0xffffffff;
+
 class FDC2214 {
 public:
+    static constexpr unsigned long INVALID_READING = FDC2214_INVALID_READING;
+
     // For using a different supported I2C interface pass Wire2, Wire3... as second parameter.
     FDC2214(FDC2214_I2C_ADDR i2caddr, typeof(Wire)& wire = Wire);
 
@@ -60,9 +63,9 @@ public:
     // Deprecated. autoscanSeq has become obsolete. It is automatically calculated from chanMask.
     bool begin(uint8_t channelMask, uint8_t deglitchValue, uint8_t autoscanSeq, bool useInternalOscillator);
 
-    const FDC2214_DEVICE getDevice() const;
+    FDC2214_DEVICE getDevice() const;
 
-    const size_t getChannelCount() const;
+    size_t getChannelCount() const;
 
     // return true on success: Otherwise false.
     bool setFrequencyDivider(uint8_t channel, uint16_t value);
@@ -70,30 +73,53 @@ public:
     // return true on success: Otherwise false.
     bool setOffset(uint8_t channel, uint16_t value);
 
-    // return true, if sleep mode is enabled. Otherwise false.
-    bool isSleepModeEnabled()const;
+    // return 1, if sleep mode is enabled. return 0, if sleep mode is disabled. return -1 upon I2C read error.
+    int isSleepModeEnabled()const;
 
-    // return sleep mode before that call.
-    bool enableSleepMode();
+    // return sleep mode before that call or -1 upon I2C read error.
+    int enableSleepMode();
 
-    // return sleep mode before that call.
-    bool disableSleepMode();
+    // return sleep mode before that call or -1 upon I2C read error.
+    int disableSleepMode();
 
-// To be used with FDC2112 and FDC2114
-    unsigned long getReading16(uint8_t channel, int timeout = 100) const;
-// To be used with FDC2212 and FDC2214
-    unsigned long getReading28(uint8_t channel, int timeout = 100) const;
+    // gives out the formatted 28 bit reading. To be used by any FDC2x1x
+    // returns FDC2214_INVALID_READING in case of an error.
+    unsigned long getReading(uint8_t channel, int timeout = 128) const;
 
+    // Deprecated. To be used with FDC2112 and FDC2114.
+    // Takes in channel number, gives out the formatted 28 bit reading.
+    unsigned long getReading16(uint8_t channel, int timeout = 128) const {
+      return getReading(channel, timeout);
+    }
+
+    // Deprecated. To be used with FDC2212 and FDC2214.
+    // Takes in channel number, gives out the formatted 28 bit reading.
+    unsigned long getReading28(uint8_t channel, int timeout = 128) const {
+      return getReading(channel, timeout);
+    }
+
+    // return the wire object that is used for I2C communication.
+    typeof(Wire)& getWire() {return _wire;}
 private:
-    void loadSettings(uint8_t chanMask, bool enableSleepMode, uint8_t deglitchValue, bool useInternalOscillator, FDC2214_GAIN gain);
-    void loadChannelSettings(const uint16_t regOffset);
+    unsigned long getReading(uint8_t channel, int timeout, const int addressMSB,
+        const int addressLSB) const;
+
+    bool loadSettings(uint8_t chanMask, bool enableSleepMode, uint8_t deglitchValue,
+        bool useInternalOscillator, FDC2214_GAIN gain);
+
+    bool loadChannelSettings(const uint16_t regOffset);
+
     const FDC2214_DEVICE readDeviceId() const;
 
-    void write8FDC(uint16_t address, uint8_t data);
-    uint8_t read8FDC(uint16_t address) const;
+    bool readMsbLsb(unsigned long& reading, const int addressMSB, const int addressLSB) const;
 
-    void write16FDC(uint16_t address, uint16_t data);
-    uint16_t read16FDC(uint16_t address) const;
+    // return -1 if read failed. Otherwise return the read value in the range of 0..0xFFFF
+    int32_t read16FDC(int address) const;
+
+    void write16FDC(int address, uint16_t data);
+
+    // return -1 if wait expired. Otherwise the value of the read byte.
+    int16_t waitFDC() const;
 
     FDC2214_I2C_ADDR _i2caddr;
     typeof(Wire)& _wire;
